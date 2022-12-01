@@ -1,0 +1,108 @@
+(type (heap 'a) {:items& (array 'a) :cmp (fun 'a 'a int)})
+
+(fun parent [i]
+  (/ (- i 1) 2))
+
+(fun left [i]
+  (+ (* 2 i) 1))
+
+(fun right [i]
+  (+ (* 2 i) 2))
+
+(fun get [heap i]
+  (array-get (.items heap) i))
+
+(fun root? [i]
+  (= 0 i))
+
+(fun inside? [heap i]
+  (< i (array-length (.items heap))))
+
+-- TODO this can be nonmut
+(fun swap [heap& i j]
+  (val tmp (get heap i))
+  (set &(array-get (.items heap) i) (get heap j))
+  (set &(array-get (.items heap) j) tmp))
+
+(fun largest-child [heap i]
+  (cond
+    ((not (inside? heap i)) #none)
+    ((not (inside? heap (left i))) #none)
+    (else (if (not (inside? heap (right i)))
+            -- only the left child exist
+            (#some (left i))
+            -- find the bigger item
+            (if (< ((.cmp heap) (get heap (left i)) (get heap (right i)))
+                   0)
+              (#some (right i))
+              (#some (left i)))))))
+
+(fun heapify_up [heap& i]
+  (if (or (root? i)
+          (< ((.cmp heap) (get heap i) (get heap (parent i)))
+             0))
+    ()
+    (do
+      (swap &heap i (parent i))
+      (heapify_up &heap (parent i)))))
+
+(fun heapify_down [heap& i]
+  (match (largest-child heap i)
+    ((#some j)
+     (if (< ((.cmp heap) (get heap j) (get heap i))
+            0)
+       ()
+       (do
+         (swap &heap i j)
+         (heapify_down &heap j))))
+    (#none ())))
+
+(fun insert [heap& item]
+  (val i (array-length (.items heap)))
+  (array-push &(.items heap) item)
+  (heapify_up &heap i))
+
+(fun peek [heap]
+  (if (> (array-length (.items heap)) 0)
+    (#some (get heap 0))
+    #none))
+
+(fun pop [heap&]
+  (match (peek heap)
+    (#none #none)
+    ((#some value)
+     (let [len (array-length (.items heap))]
+       (swap &heap 0 (- len 1))
+       (array-drop-back &(.items heap))
+       (heapify_down &heap 0)
+       (#some value)))))
+
+-- (fun take [heap& num]
+--   (val out& [])
+--   (fun f [i] (ignore i)
+--     (->> (match (pop &heap)
+--            ((#some thing) thing)
+--            (#none 0))
+--          (array-push &out)))
+--   (iter-range 0 num f)
+--   out)
+
+-- test
+-- (type item {:thing string :prio int})
+
+-- (val heap& {:items [] :cmp (fun [i j] (- (.prio i) (.prio j)))})
+
+-- (insert &heap {:thing "1st" :prio 2})
+-- (insert &heap {:thing "2nd" :prio 1})
+-- (insert &heap {:thing "3rd" :prio 5})
+-- (insert &heap {:thing "4th" :prio 3})
+
+-- (fun pop-all []
+--   (match (pop &heap)
+--     ((#some item)
+--      (do
+--        (print (.thing item))
+--        (pop-all)))
+--     (#none ())))
+
+-- (pop-all)
