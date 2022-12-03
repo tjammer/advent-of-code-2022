@@ -1,0 +1,64 @@
+(type hand (#rock #paper #scissors))
+(type outcome (#win #lose #draw))
+
+(fun convert-a [i]
+  (match (u8_to_int i)
+    ((or 65 88) #rock)
+    ((or 66 89) #paper)
+    ((or 67 90) #scissors)
+    (num (do (print (fmt-str "something went wrong: " num)) #scissors))))
+
+(fun convert-b [i]
+  (match (u8_to_int i)
+    (88 #lose)
+    (89 #draw)
+    (90 #win)
+    (num (do (print (fmt-str "something went wrong: " num)) #win))))
+
+(fun score [item]
+  (val win
+    (match item
+    ((or { #rock #paper } { #scissors #rock } { #paper #scissors }) 6)
+    ((or { #scissors #paper } { #paper #rock } { #rock #scissors }) 0)
+    (_ 3)))
+  (val pick
+    (match item
+      ({ _ #rock } 1)
+      ({ _ #paper } 2)
+      ({ _ #scissors } 3)))
+  (+ win pick))
+
+(fun eval-b [item]
+  (val pick
+    (match item
+      ((or { #rock #win } { #scissors #lose }) #paper)
+      ((or { #paper #win } { #rock #lose }) #scissors)
+      ((or { #scissors #win } { #paper #lose }) #rock)
+      ({ i #draw } i)))
+  (score {(.0 item) pick}))
+
+(fun parse [f]
+  (val lines io/(split-newlines (read-file f)))
+  (val items-a& [])
+  (val items-b& [])
+
+  (fun collect-a [line]
+    (let [opponent io/(array-get (.buf line) (.start line))
+          mine io/(array-get (.buf line) (+ (.start line) 2))]
+      (array-push &items-a {(convert-a opponent) (convert-a mine)})))
+  (array-iter lines collect-a)
+
+  (fun collect-b [line]
+    (let [opponent io/(array-get (.buf line) (.start line))
+          mine io/(array-get (.buf line) (+ (.start line) 2))]
+      (array-push &items-b {(convert-a opponent) (convert-b mine)})))
+  (array-iter lines collect-b)
+
+  (-> (array-fold items-a (fun [sum item] (+ sum (score item))) 0)
+      fmt-str
+      print)
+  (-> (array-fold items-b (fun [sum item] (+ sum (eval-b item))) 0)
+      fmt-str
+      print))
+
+(io/with-open "input" parse)

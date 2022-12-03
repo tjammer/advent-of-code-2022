@@ -1,75 +1,13 @@
-(type file (raw_ptr unit))
-(external fread (fun u8& int int file int))
-(external fopen (fun (raw_ptr u8) (raw_ptr u8) file))
-(external fclose (fun file unit))
-(external ferror (fun file i32))
 -- (external stdout file)
 -- (external fputs (fun u8& file unit))
 -- (external strtol (fun (raw_ptr u8) (raw_ptr u8) i32 int))
 (external strtol (fun u8& (raw_ptr u8) i32 int))
 
-(fun str-cpy [src dst& size]
-  (iter-range 0 size
-              (fun [i] (set &(array-get dst i) (array-get src i)))))
-
-(fun read-file [file]
-  (val chunk-size 2097152)
-  (val buf& (__unsafe_array_create chunk-size))
-
-  (fun read [used bufsize]
-    (if (> (+ used chunk-size) bufsize)
-      (let [newsize (* 2 bufsize)
-            newbuf& (__unsafe_array_create newsize)] --realloc
-        (str-cpy buf &newbuf (array-length buf))
-        (set &buf newbuf)
-        (read used newsize))
-      (let [n (fread &(array-get buf used) 1 chunk-size file)]
-        (if (< n chunk-size)
-          (+ used n)
-          (read (+ used n) bufsize)))))
-  (val fsize (read 0 chunk-size))
-  (if (not (= 0 (int_of_i32 (ferror file))))
-    (do
-      (print "Could not read file")
-      [])
-    (do
-      (set &(array-length buf) fsize)
-      (array-set &buf fsize 0u8)
-      buf)))
-
-(type (view 'a) {:buf& (array 'a) :start int :len int})
+(open io)
 
 (fun int-of-view [view]
   (let [mut& view]
     (strtol &(array-get (.buf mut) (.start view)) (__unsafe_nullptr) 0i32)))
-
-(fun split-newlines [buf]
-  (fun get-next-newline [i]
-    -- TODO cannot print here without leaking memory
-    (if (= i (array-length buf))
-      #none
-      (if (= (u8_to_int (array-get buf i)) 10)
-        (#some i)
-        (get-next-newline (+ i 1)))))
-
-  (fun build-splits [splits& start]
-    (match (get-next-newline start)
-      ((#some i)
-       (let [len (- i start)]
-         (array-push &splits {:buf :start :len})
-         (build-splits &splits (+ i 1))))
-      (#none
-       (let [len (- (array-length buf) start)]
-         (array-push &splits {:buf :start :len})
-         splits))))
-  (val splits& [])
-  (build-splits &splits 0))
-
-(fun with-open [filename f]
-  (let [file (fopen (array-data filename) (array-data "r"))
-        ret (f file)]
-    (fclose file)
-    ret))
 
 (fun take [heap& num]
   (val out& [])
