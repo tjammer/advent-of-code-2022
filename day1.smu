@@ -4,6 +4,7 @@
 (external strtol (fun u8& (raw_ptr u8) i32 int))
 
 (open io)
+(open util)
 
 (fun int-of-view [view]
   (let [mut& view]

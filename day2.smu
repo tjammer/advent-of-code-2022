@@ -1,3 +1,5 @@
+(open util)
+
 (type hand (#rock #paper #scissors))
 (type outcome (#win #lose #draw))
 
@@ -38,26 +40,24 @@
   (score {(.0 item) pick}))
 
 (fun parse [f]
-  (val lines io/(split-newlines (read-file f)))
-  (val items-a& [])
-  (val items-b& [])
+  (val lines (split-newlines (io/read-file f)))
 
   (fun collect-a [line]
     (let [opponent io/(array-get (.buf line) (.start line))
           mine io/(array-get (.buf line) (+ (.start line) 2))]
-      (array-push &items-a {(convert-a opponent) (convert-a mine)})))
-  (array-iter lines collect-a)
+      {(convert-a opponent) (convert-a mine)}))
 
   (fun collect-b [line]
     (let [opponent io/(array-get (.buf line) (.start line))
           mine io/(array-get (.buf line) (+ (.start line) 2))]
-      (array-push &items-b {(convert-a opponent) (convert-b mine)})))
-  (array-iter lines collect-b)
+      {(convert-a opponent) (convert-b mine)}))
 
-  (-> (array-fold items-a (fun [sum item] (+ sum (score item))) 0)
+  (-> (array-map lines collect-a)
+      (array-fold (fun [sum item] (+ sum (score item))) 0)
       fmt-str
       print)
-  (-> (array-fold items-b (fun [sum item] (+ sum (eval-b item))) 0)
+  (-> (array-map lines collect-b)
+      (array-fold (fun [sum item] (+ sum (eval-b item))) 0)
       fmt-str
       print))
 

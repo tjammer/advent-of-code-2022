@@ -38,28 +38,3 @@
         ret (f file)]
     (fclose file)
     ret))
-
-(type (view 'a) {:buf& (array 'a) :start int :len int})
-
-(fun split-newlines [buf]
-  (fun get-next-newline [i]
-    (if (= i (array-length buf))
-      #none
-      (if (= (u8_to_int (array-get buf i)) 10)
-        (#some i)
-        (get-next-newline (+ i 1)))))
-
-  (fun build-splits [splits& start]
-    (match (get-next-newline start)
-      ((#some i)
-       (let [len (- i start)]
-         (array-push &splits {:buf :start :len})
-         (build-splits &splits (+ i 1))))
-      (#none
-       -- (let [len (- (array-length buf) start)]
-       --   (array-push &splits {:buf :start :len})
-       --   splits)
-       -- assume last line is empty
-       splits)))
-  (val splits& [])
-  (build-splits &splits 0))

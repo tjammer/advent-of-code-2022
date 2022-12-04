@@ -1,0 +1,74 @@
+(open util)
+
+(type compartments {:fst (view u8) :snd (view u8)})
+
+(fun split-compartment [rucksack]
+  (val halflen (/ (.len rucksack) 2))
+  { :fst {@rucksack :len halflen}
+    :snd {@rucksack :start (+ (.start rucksack) halflen) :len halflen} })
+
+(fun find-common [compartments]
+  (val len (.len (.fst compartments)))
+  (val ret& #none)
+  (fun f [i j]
+    (val fst (array-get (.buf (.fst compartments)) (+ (.start (.fst compartments)) i)))
+    (val snd (array-get (.buf (.snd compartments)) (+ (.start (.snd compartments)) j)))
+    (if (= (u8_to_int fst) (u8_to_int snd))
+      (set &ret (#some (u8_to_int fst)))
+      ()))
+  (iter-range 0 len (fun [j] (iter-range 0 len (fun [i] (f i j)))))
+  (match ret
+    ((#some i) i)
+    (#none (do (print "something went wrong, no common") 0))))
+
+(fun find-badge [fst snd trd]
+  (val ret& #none)
+  (fun f [i j k]
+    (val v1 (u8_to_int (array-get (.buf fst) (+ (.start fst) i))))
+    (val v2 (u8_to_int (array-get (.buf snd) (+ (.start snd) j))))
+    (val v3 (u8_to_int (array-get (.buf trd) (+ (.start trd) k))))
+    (if (and (= v1 v2) (= v2 v3))
+      (set &ret (#some v1))
+      ()))
+  (fun loop [i j k]
+    (cond
+      ((= i (.len fst)) ())
+      ((= j (.len snd)) (loop (+ i 1) 0 k))
+      ((= k (.len trd)) (loop i (+ j 1) 0))
+      (else (do (f i j k) (loop i j (+ k 1))))))
+  (loop 0 0 0)
+  (match ret
+    ((#some i) i)
+    (#none (do (print "something went wrong, no common") 0))))
+
+(fun loop-group [lines]
+  (val ret& [])
+  (array-iteri lines
+              (fun [i item]
+                (if (= 2 (mod i 3))
+                  (let [badge (find-badge (array-get lines (- i 2)) (array-get lines (- i 1)) item)]
+                    (array-push &ret badge)))))
+  ret)
+
+(fun score-item [item]
+  (cond
+    ((< item 91) (+ (- item 65) 27))
+    (else (- item 96))))
+
+(fun solve [f]
+  (val lines io/(split-newlines (read-file f)))
+  (-> lines
+      (array-map split-compartment)
+      (array-map find-common)
+      (array-map score-item)
+      (array-fold (fun [sum score] (+ sum score)) 0)
+      fmt-str
+      print)
+    (-> lines
+      loop-group
+      (array-map score-item)
+      (array-fold (fun [sum score] (+ sum score)) 0)
+      fmt-str
+      print))
+
+(io/with-open "input" solve)

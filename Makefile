@@ -11,16 +11,13 @@ DAYS = $(SRCS:%.smu=%)
 
 all: $(DAYS)
 
-heap.o io.o: %.o: %.smu
+heap.o io.o util.o: %.o: %.smu
 	$(SCHMU) -m $<
 
-support: heap.o io.o
-	$ touch support
-
-$(DAYS): %: %.smu support
+$(DAYS): %: %.smu heap.o io.o util.o
 	$(SCHMU) $<
 
 clean:
-	rm *.o $(DAYS) *.smi support
+	rm *.o $(DAYS) *.smi
 
 # end
