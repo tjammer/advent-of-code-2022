@@ -1,0 +1,49 @@
+(external strtol (fun (raw_ptr u8) (raw_ptr u8) i32 int))
+(type file (raw_ptr u8))
+(external stdout file)
+(external fputs (fun (raw_ptr u8) file unit))
+
+
+(type (view 'a) {:buf& (array 'a) :start int :len int})
+
+(fun view-split-on-char [view char-as-int]
+  (fun get-next-newline [i]
+    (if (= i (.len view))
+      #none
+      (if (= (u8_to_int (array-get (.buf view) (+ (.start view) i)))
+             char-as-int)
+        (#some i)
+        (get-next-newline (+ i 1)))))
+
+  (fun build-splits [splits& start]
+    (match (get-next-newline start)
+      ((#some i)
+       (let [len (- i start)]
+         (array-push &splits {:buf (.buf view) :start (+ (.start view) start) :len})
+         (build-splits &splits (+ i 1))))
+      (#none
+       (if (= (u8_to_int (array-get (.buf view) start)) 0)
+         splits
+         (let [len (- (.len view) start)]
+         (array-push &splits {:buf (.buf view) :start (+ (.start view) start) :len})
+         splits)))))
+  (val splits& [])
+  (build-splits &splits 0))
+
+(fun split-newlines [buf]
+  (view-split-on-char {:buf :start 0 :len (array-length buf)} 10))
+
+(fun int-of-view [view]
+  (strtol (__unsafe_ptr_at (array-data (.buf view)) (.start view))
+          (__unsafe_nullptr) 0i32))
+
+(fun debug-print-view [view]
+  (val buf& "")
+  (array-push &buf 0u8)
+  (array-drop-back &buf)
+  (fun print-view [i]
+    (let [c (array-get (.buf view) i)]
+      (array-set &buf 0 c)
+      (fputs (array-data buf) stdout)))
+  (iter-range (.start view) (+ (.start view) (.len view)) print-view)
+  (print ""))

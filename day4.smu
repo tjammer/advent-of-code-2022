@@ -1,0 +1,33 @@
+(open util)
+
+(type range {:min int :max int})
+
+(fun find-range [range-str]
+  (let [vals (view-split-on-char range-str 45)]
+    {:min (int-of-view (array-get vals 0))
+     :max (int-of-view (array-get vals 1))}))
+
+(fun total-overlap? [fst snd]
+  (or (and (not (< (.min fst) (.min snd)))
+           (not (> (.max fst) (.max snd))))
+      (and (not (< (.min snd) (.min fst)))
+           (not (> (.max snd) (.max fst))))))
+
+(fun any-overlap? [fst snd]
+  (not (or (< (.max fst) (.min snd))
+           (> (.min fst) (.max snd)))))
+
+(fun count-overlaps [sum line overlap-fn]
+  (let [pair (view-split-on-char line 44)
+        fst (find-range (array-get pair 0))
+        snd (find-range (array-get pair 1))]
+    (if (overlap-fn fst snd) (+ sum 1) sum)))
+
+(fun solve [f]
+  (val lines io/(split-newlines (io/read-file f)))
+  (-> (array-fold lines (fun [sum line] (count-overlaps sum line total-overlap?)) 0)
+      fmt-str print)
+  (-> (array-fold lines (fun [sum line] (count-overlaps sum line any-overlap?)) 0)
+      fmt-str print))
+
+(io/with-open "input" solve)

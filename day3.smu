@@ -46,7 +46,8 @@
   (array-iteri lines
               (fun [i item]
                 (if (= 2 (mod i 3))
-                  (let [badge (find-badge (array-get lines (- i 2)) (array-get lines (- i 1)) item)]
+                  (let [badge (find-badge (array-get lines (- i 2))
+                                          (array-get lines (- i 1)) item)]
                     (array-push &ret badge)))))
   ret)
 

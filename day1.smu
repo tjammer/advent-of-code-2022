@@ -1,14 +1,9 @@
 -- (external stdout file)
 -- (external fputs (fun u8& file unit))
 -- (external strtol (fun (raw_ptr u8) (raw_ptr u8) i32 int))
-(external strtol (fun u8& (raw_ptr u8) i32 int))
 
 (open io)
 (open util)
-
-(fun int-of-view [view]
-  (let [mut& view]
-    (strtol &(array-get (.buf mut) (.start view)) (__unsafe_nullptr) 0i32)))
 
 (fun take [heap& num]
   (val out& [])
