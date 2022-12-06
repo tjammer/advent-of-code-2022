@@ -3,7 +3,7 @@
 (type range {:min int :max int})
 
 (fun find-range [range-str]
-  (let [vals (view-split-on-char range-str 45)]
+  (let [vals (view-split-on-char range-str '-')]
     {:min (int-of-view (array-get vals 0))
      :max (int-of-view (array-get vals 1))}))
 
@@ -18,7 +18,7 @@
            (> (.min fst) (.max snd)))))
 
 (fun count-overlaps [sum line overlap-fn]
-  (let [pair (view-split-on-char line 44)
+  (let [pair (view-split-on-char line ',')
         fst (find-range (array-get pair 0))
         snd (find-range (array-get pair 1))]
     (if (overlap-fn fst snd) (+ sum 1) sum)))

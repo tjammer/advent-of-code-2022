@@ -6,12 +6,11 @@
 
 (type (view 'a) {:buf& (array 'a) :start int :len int})
 
-(fun view-split-on-char [view char-as-int]
+(fun view-split-on-char [view char]
   (fun get-next-newline [i]
     (if (= i (.len view))
       #none
-      (if (= (u8_to_int (array-get (.buf view) (+ (.start view) i)))
-             char-as-int)
+      (if (char-equal (array-get (.buf view) (+ (.start view) i)) char)
         (#some i)
         (get-next-newline (+ i 1)))))
 
@@ -22,7 +21,7 @@
          (array-push &splits {:buf (.buf view) :start (+ (.start view) start) :len})
          (build-splits &splits (+ i 1))))
       (#none
-       (if (= (u8_to_int (array-get (.buf view) start)) 0)
+       (if (char-equal (array-get (.buf view) start) '\000')
          splits
          (let [len (- (.len view) start)]
          (array-push &splits {:buf (.buf view) :start (+ (.start view) start) :len})
@@ -31,7 +30,7 @@
   (build-splits &splits 0))
 
 (fun split-newlines [buf]
-  (view-split-on-char {:buf :start 0 :len (array-length buf)} 10))
+  (view-split-on-char {:buf :start 0 :len (array-length buf)} '\n'))
 
 (fun int-of-view [view]
   (strtol (__unsafe_ptr_at (array-data (.buf view)) (.start view))
@@ -39,7 +38,7 @@
 
 (fun debug-print-view [view]
   (val buf& "")
-  (array-push &buf 0u8)
+  (array-push &buf '\000')
   (array-drop-back &buf)
   (fun print-view [i]
     (let [c (array-get (.buf view) i)]

@@ -24,10 +24,10 @@
 (fun find-badge [fst snd trd]
   (val ret& #none)
   (fun f [i j k]
-    (val v1 (u8_to_int (array-get (.buf fst) (+ (.start fst) i))))
-    (val v2 (u8_to_int (array-get (.buf snd) (+ (.start snd) j))))
-    (val v3 (u8_to_int (array-get (.buf trd) (+ (.start trd) k))))
-    (if (and (= v1 v2) (= v2 v3))
+    (val v1 (array-get (.buf fst) (+ (.start fst) i)))
+    (val v2 (array-get (.buf snd) (+ (.start snd) j)))
+    (val v3 (array-get (.buf trd) (+ (.start trd) k)))
+    (if (and (char-equal v1 v2) (char-equal v2 v3))
       (set &ret (#some v1))
       ()))
   (fun loop [i j k]
@@ -38,7 +38,7 @@
       (else (do (f i j k) (loop i j (+ k 1))))))
   (loop 0 0 0)
   (match ret
-    ((#some i) i)
+    ((#some i) (u8_to_int i))
     (#none (do (print "something went wrong, no common") 0))))
 
 (fun loop-group [lines]

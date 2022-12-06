@@ -4,17 +4,17 @@
 (type outcome (#win #lose #draw))
 
 (fun convert-a [i]
-  (match (u8_to_int i)
-    ((or 65 88) #rock)
-    ((or 66 89) #paper)
-    ((or 67 90) #scissors)
+  (match i
+    ((or 'A' 'X') #rock)
+    ((or 'B' 'Y') #paper)
+    ((or 'C' 'Z') #scissors)
     (num (do (print (fmt-str "something went wrong: " num)) #scissors))))
 
 (fun convert-b [i]
-  (match (u8_to_int i)
-    (88 #lose)
-    (89 #draw)
-    (90 #win)
+  (match i
+    ('X' #lose)
+    ('Y' #draw)
+    ('Z' #win)
     (num (do (print (fmt-str "something went wrong: " num)) #win))))
 
 (fun score [item]
@@ -61,4 +61,4 @@
       fmt-str
       print))
 
-(io/with-open "input" parse)
+(io/with-open "inp.txt" parse)

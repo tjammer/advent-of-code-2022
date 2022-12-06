@@ -10,8 +10,8 @@
     (val pos (+ 1 (* i 4)))
     (if (not (< pos (.len line)))
       ()
-      (match (u8_to_int (array-get (.buf line) (+ (.start line) pos)))
-        (32 ())
+      (match (array-get (.buf line) (+ (.start line) pos))
+        (' ' ())
         (n (array-push &(array-get stacks i) n)))))
   (iter-range 0 num-stacks f))
 
@@ -33,7 +33,7 @@
   (iter-range 0 move (fun [i] (ignore i) (array-drop-back &(array-get stacks from)))))
 
 (fun instructions [stacks& line move]
-  (let [items (view-split-on-char line 32)
+  (let [items (view-split-on-char line ' ')
         mv (int-of-view (array-get items 1))
         from (int-of-view (array-get items 3))
         to (int-of-view (array-get items 5))]
@@ -41,7 +41,7 @@
 
 (fun print-stacks [stacks]
   (fun build-str [str stack]
-                 (val item (u8_of_int (array-get stack (- (array-length stack) 1))))
+                 (val item (array-get stack (- (array-length stack) 1)))
                  (fmt-str str item))
   (print (array-fold stacks build-str "")))
 
