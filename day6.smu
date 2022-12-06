@@ -1,0 +1,31 @@
+(open util)
+
+(fun last-n-differ? [buf start n]
+  (fun same [char n]
+    (char-equal (array-get buf (+ start n)) char))
+  (fun char-dup? [chari ofs]
+    (cond
+      ((= chari 0) false)
+      ((= ofs -1) (char-dup? (- chari 1) (- chari 2)))
+      ((same (array-get buf (+ start chari)) ofs)
+       true)
+      (else  (char-dup? chari (- ofs 1)))))
+  (fun loop-chars [num]
+    (cond
+      ((= num 0) true)
+      ((char-dup? num (- num 1)) false)
+      (else (loop-chars (- num 1)))))
+  (loop-chars (- n 1)))
+
+(fun solve [f]
+  (val content (io/read-file f))
+  (val numdist 14)
+  (fun find-first [n]
+    (cond
+      ((= n (- (array-length content) numdist))
+       (print "all dups"))
+      ((last-n-differ? content n numdist) (print (fmt-str (+ n numdist))))
+      (else (find-first (+ n 1)))))
+  (find-first 0))
+
+(io/with-open "input" solve)
