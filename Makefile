@@ -11,10 +11,10 @@ DAYS = $(SRCS:%.smu=%)
 
 all: $(DAYS)
 
-heap.o io.o util.o: %.o: %.smu
+heap.o io.o util.o hashtbl.o parser.o: %.o: %.smu
 	$(SCHMU) -m $<
 
-$(DAYS): %: %.smu heap.o io.o util.o
+$(DAYS): %: %.smu heap.o io.o util.o hashtbl.o parser.o
 	$(SCHMU) $<
 
 clean:

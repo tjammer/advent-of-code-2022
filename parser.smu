@@ -1,0 +1,336 @@
+(type view {:buf string :start int :len int})
+(type (success 'a) {:rem view :mtch 'a})
+(type (parse-result 'a) ((#ok (success 'a)) (#err view)))
+
+
+(fun string-of-view [view]
+  (val ret& (__unsafe_array_create (+ 1 view.len)))
+  (set &(array-length ret) 0)
+  (iter-range (.start view) (+ view.start view.len)
+              (fun [c] (array-push &ret (array-get view.buf c))))
+  (array-push &ret '\000')
+  (array-drop-back &ret)
+  ret)
+
+(fun char [c]
+  (fun [buf]
+    (if (char-equal (array-get buf.buf buf.start) c)
+      (#ok {:mtch {@buf :len 1}
+            :rem {@buf :start (+ 1 buf.start) :len (- buf.len 1)}})
+      (#err buf))))
+
+(fun string [s]
+  (fun [buf]
+    (val len (array-length s))
+    (fun aux [i]
+      (if (= i len)
+        (#ok {:mtch {:buf buf.buf :start buf.start :len}
+              :rem {@buf :start (+ len buf.start) :len (- buf.len len)}})
+        (if (char-equal (array-get s i) (array-get buf.buf (+ buf.start i)))
+          (aux (+ i 1))
+          (#err buf))))
+    (if (> len (- (array-length buf.buf) buf.start))
+      (#err buf)
+      (aux 0))))
+
+(fun startswith [view str]
+  (val len (array-length str))
+  (fun strequal [i]
+    (if (= i len)
+      true
+      (if (char-equal (array-get str i) (array-get view.buf (+ view.start i)))
+        (strequal (+ i 1))
+        false)))
+  (if (> len view.len)
+    false
+    (strequal 0)))
+
+(fun take-until [s]
+  (fun [buf]
+    (fun aux [i]
+      (if (= i (array-length buf.buf))
+        (#err buf)
+        (if (startswith {:buf buf.buf :start i :len (- (array-length buf.buf) i)} s)
+          (let [len (- i buf.start)]
+            (#ok {:mtch {@buf :len}
+                  :rem {@buf :start (+ buf.start len) :len (- buf.len len)}}))
+          (aux (+ i 1)))))
+    (if (= 0 (array-length s))
+      (#err buf)
+      (aux buf.start))))
+
+(fun print-result [res]
+  (-> (match res
+        ((#ok {:rem :mtch})
+         (fmt-str "(\"" (string-of-view rem)
+                  "\", \"" (string-of-view mtch) "\")"))
+        ((#err lexbuf)
+         (fmt-str "(\"" (string-of-view lexbuf)
+                  "\", #err)")))
+      print))
+
+(fun print-results [res]
+  (fun f [str v]
+    (let [delim (if (= 0 (array-length str))
+                  ""
+                  ", ")]
+     (fmt-str str delim "\"" (string-of-view v) "\"")))
+  (-> (match res
+        ((#ok {:rem :mtch})
+         (let [matches (array-fold mtch f "")]
+           (fmt-str "(\"" (string-of-view rem)
+                    "\", [" matches "])")))
+        ((#err lexbuf)
+         (fmt-str "(\"" (string-of-view lexbuf)
+                  "\", #err)")))
+      print))
+
+(fun print-result-pair [res]
+  (-> (match res
+        ((#ok {:rem :mtch {fst snd}})
+         (fmt-str "(\"" (string-of-view rem)
+                  "\", {\"" (string-of-view fst) "\" \"" (string-of-view snd) "\"})"))
+        ((#err lexbuf)
+         (fmt-str "(\"" (string-of-view lexbuf)
+                  "\", \"\")")))
+      print))
+
+(fun alt [alts]
+  (fun [buf]
+    (fun aux [i]
+      (if (= i (array-length alts))
+        (#err buf)
+        (match ((array-get alts i) buf)
+          ((#ok r) (#ok r))
+          ((#err _) (aux (+ i 1))))))
+    (aux 0)))
+
+(fun seq [seqs]
+  (fun [buf]
+    (val (ret& (array int)) (__unsafe_array_create (array-length seqs)))
+    (set &(array-length ret) 0)
+    (fun aux [i rem] -- TODO this cannot be defined outside the lambda
+      (if (= i (array-length seqs))
+        (#ok {:rem :mtch ret})
+        (match ((array-get seqs i) rem)
+          ((#ok r) (do
+                     -- (array-push &ret r.mtch)
+                     (aux (+ i 1) r.rem)))
+          ((#err _) (#err buf)))))
+    (aux 0 buf)))
+
+(fun many [p]
+  (fun [buf]
+    (val ret& [])
+    (fun aux [rem]
+      (match (p rem)
+        ((#ok r) (do
+                   (array-push &ret r.mtch)
+                   (aux r.rem)))
+        ((#err _) (#ok {:rem :mtch ret}))))
+    (aux buf)))
+
+(fun many-count [p]
+  (fun [buf]
+    (fun aux [rem cnt]
+      (match (p rem)
+        ((#ok r) (aux r.rem (+ cnt 1)))
+        ((#err _) (#ok {:rem :mtch cnt}))))
+    (aux buf 0)))
+
+(fun bind [res f]
+  (match res
+    ((#ok r) (f r))
+    ((#err err) (#err err))))
+
+(fun pair [pr]
+  (fun [buf]
+    (match pr
+      ({fst _}
+       (match (bind (fst buf)
+              (fun [fst] (bind (pr.1 fst.rem)
+              (fun [snd]
+                (#ok {:rem snd.rem :mtch {fst.mtch snd.mtch}})))))
+         ((#ok r) (#ok r))
+         ((#err _) (#err buf)))))))
+
+-- TODO alt4
+-- (fun quadruple [quad]
+--   (fun [buf]
+--     -- TODO use bindings from pattern match
+--      (match quad
+--        ({fst _ _ _}
+--         (match (bind (fst buf)
+--                (fun [fst]  (bind (quad.1 fst.rem)
+--                (fun [snd] (bind (quad.2 snd.rem)
+--                (fun [trd] (bind (quad.3 trd.rem)
+--                (fun [fth]
+--                  (#ok {:rem fth.rem :mtch {fst.mtch snd.mtch trd.mtch fth.mtch}})))))))))
+--           ((#ok r) (#ok r))
+--           ((#err _) (#err buf)))))))
+
+(fun alt4 [quad]
+  (fun [buf]
+    (match quad
+      ({fst snd trd fth}
+       (match (fst buf)
+         ((#ok r) (#ok r))
+         ((#err _)
+          (match (snd buf)
+            ((#ok r) (#ok r))
+            ((#err _)
+             (match (trd buf)
+               ((#ok r) (#ok r))
+               ((#err _)
+                (match (fth buf)
+                  ((#ok r) (#ok r))
+                  ((#err _) (#err buf)))))))))))))
+
+(fun delimited [fst snd trd]
+  (fun [buf]
+    (match (bind (fst buf)
+                 (fun [r] (bind (snd r.rem)
+                 (fun [snd] (bind (trd snd.rem)
+                 (fun [r] (#ok {:rem r.rem :mtch snd.mtch})))))))
+      ((#ok r) (#ok r))
+      ((#err _) (#err buf)))))
+
+(fun terminated [fst snd]
+  (fun [buf]
+    (match (bind (fst buf)
+                 (fun [fst] (bind (snd fst.rem)
+                 (fun [snd] (#ok {:rem snd.rem :mtch fst.mtch})))))
+      ((#ok r) (#ok r))
+      ((#err _) (#err buf)))))
+
+(fun preceded [fst snd]
+  (fun [buf]
+    (match (bind (fst buf)
+                 (fun [fst] (bind (snd fst.rem)
+                 (fun [snd] (#ok {:rem snd.rem :mtch snd.mtch})))))
+      ((#ok r) (#ok r))
+      ((#err _) (#err buf)))))
+
+(fun map [p f]
+  (fun [buf]
+    (match (p buf)
+      ((#ok ok) (#ok {@ok :mtch (f ok.mtch)}))
+      ((#err lb) (#err lb)))))
+
+(fun impl-ret [buf i]
+  (if (> i 0)
+    (#ok {:rem {:buf buf.buf :start (+ i buf.start) :len (- buf.len i)}
+          :mtch {@buf :len i}})
+    (#err buf)))
+
+(fun digit1 [buf]
+  (val min (u8_to_int '0'))
+  (val max (u8_to_int '9'))
+  (fun aux [i]
+    (if (< i buf.len)
+      (let [char (u8_to_int (array-get buf.buf (+ buf.start i)))]
+        (if (or (< char min) (> char max))
+          (impl-ret buf i)
+          (aux (+ i 1))))
+      (impl-ret buf i)))
+  (aux 0))
+
+(fun alphanumeric1 [buf]
+  (let [numin (u8_to_int '0')
+        numax (u8_to_int '9')
+        lomin (u8_to_int 'a')
+        lomax (u8_to_int 'z')
+        upmin (u8_to_int 'A')
+        upmax (u8_to_int 'Z')]
+    (fun aux [i]
+      (if (< i buf.len)
+        (let [char (u8_to_int (array-get buf.buf (+ buf.start i)))]
+          (if (and (or (< char numin) (> char numax))
+                   (or (< char lomin) (> char lomax))
+                   (or (< char upmin) (> char upmax)))
+            (impl-ret buf i)
+            (aux (+ i 1))))
+        (impl-ret buf i)))
+    (aux 0)))
+
+(val spaces (many-count (alt [(char ' ') (char '\n') (char '\t') (char '\r')])))
+
+(fun multispace [buf]
+  (match (spaces buf)
+    ((#ok suc)
+     (let [mtch {:buf suc.rem.buf :start (- suc.rem.start suc.mtch) :len suc.mtch}]
+       (#ok {:rem suc.rem :mtch})))
+    ((#err _) (#err buf))))
+
+(fun view-of-string [str]
+  {:buf str :start 0 :len (array-length str)})
+
+-- (val lx (view-of-string "x"))
+-- (val li (view-of-string "ix"))
+-- (val l0 (view-of-string "xi"))
+
+-- (print "alt")
+-- (val c (alt [(char 'x') (char 'i')]))
+-- (print-result (c lx))
+-- (print-result (c li))
+-- (print-result (c l0))
+
+-- (print "many")
+-- (val c (many c))
+-- (print-results (c lx))
+-- (print-results (c li))
+-- (print-results (c l0))
+
+-- (print "seq")
+-- (val c (seq [(string "x") (string "i")]))
+-- -- (val c (map c is-x))
+-- (print-results (c lx))
+-- (print-results (c li))
+-- (print-results (c l0))
+
+-- (print "take-until")
+-- (val p (take-until "eof"))
+-- (print-result (p (view-of-string "hello, worldeof")))
+-- (print-result (p (view-of-string "hello, world")))
+-- (print-result (p (view-of-string "")))
+-- (print-result (p (view-of-string "1eof2eof")))
+
+-- (print-results ((seq [p (char 'e')]) (view-of-string "hello, worldeof")))
+
+-- (print "pair")
+-- (val c (pair {(string "x") (string "i")}))
+-- -- (val c (map c is-x))
+-- (print-result-pair (c lx))
+-- (print-result-pair (c li))
+-- (print-result-pair (c l0))
+
+-- (print "delimited")
+-- (val del (delimited (string "(") (string "abc") (string ")")))
+-- (print-result (del (view-of-string "(abc)")))
+-- (print-result (del (view-of-string "(abcdef")))
+-- (print-result (del (view-of-string "")))
+-- (print-result (del (view-of-string "123")))
+
+-- (print "multispace")
+-- (print-result (multispace (view-of-string " \t\n\r21c")))
+-- (print-result (multispace (view-of-string "")))
+
+-- (val del (delimited multispace (string "abc") multispace))
+-- (ignore (del (view-of-string "abc  \n")))
+
+-- (print "digit1")
+-- (print-result (digit1 (view-of-string "21c")))
+-- (print-result (digit1 (view-of-string "c1")))
+-- (print-result (digit1 (view-of-string "")))
+
+-- (print "alphanumeric1")
+-- (print-result (alphanumeric1 (view-of-string "21cZ%1")))
+-- (print-result (alphanumeric1 (view-of-string "%H2")))
+-- (print-result (alphanumeric1 (view-of-string "")))
+
+-- (print "terminated")
+-- (val term (terminated (string "abc") (string "efg")))
+-- (print-result (term (view-of-string "abcefg")))
+-- (print-result (term (view-of-string "abcefghij")))
+-- (print-result (term (view-of-string "")))
+-- (print-result (term (view-of-string "123")))

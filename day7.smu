@@ -1,0 +1,76 @@
+(open parser)
+
+(val tbl& hashtbl/(create 64 string-hash string-cmp))
+
+(val path& [])
+
+(val root (map (char '/') (fun [c] (ignore c) (set &path ["/"]) 0)))
+(val up (map (string "..") (fun [name] (ignore name) (array-drop-back &path) 0)))
+(val dirname (map alphanumeric1 (fun [name]
+                                  (array-push &path (string-of-view name)) 0)))
+(val cd (delimited (string "cd ") (alt [root up dirname]) multispace))
+
+-- we can ignore dirs, at least for part 1n
+(val dir (map (delimited (string "dir ") alphanumeric1 multispace)
+              (fun [thing] (ignore thing) 0)))
+-- don't care about file name either
+(fun handle-file [view]
+  (val num (util/int-of-view {:buf view.buf :start view.start :len view.len}))
+  (ignore
+   (array-foldi path
+               (fun [i acc value]
+                 (val path (match i
+                             (0 value)
+                             (1 (fmt-str acc value))
+                             (_ (fmt-str acc "/" value))))
+                 (match (hashtbl/find tbl path)
+                   ((#some n) (hashtbl/insert &tbl path (+ num n)))
+                   (#none (hashtbl/insert &tbl path num)))
+                 path)
+               ""))
+  0)
+(val file (map (terminated digit1 (pair {(take-until "\n") multispace})) handle-file))
+
+(val ls (delimited (pair {(string "ls") multispace}) (many-count (alt [dir file])) multispace))
+(val cmd (alt [cd ls]))
+(val line (delimited (string "$ ") cmd multispace))
+(val whole (many-count line))
+
+(fun acc-tbl [acc key value]
+  (ignore key)
+  (if (> value 100000)
+    acc
+    (+ value acc)))
+
+(fun smallest-deletion [tbl]
+  (val total 70000000)
+  (val req 30000000)
+  (val used (match (hashtbl/find tbl "/")
+              ((#some v) v)
+              (#none (do
+                       (print "could not find /")
+                       0))))
+  (val unused (- total used))
+  (val sizes& (-> (hashtbl/to-array tbl)
+                  (array-map (fun [pr] (match pr ({_ snd} snd))))))
+  (util/sort &sizes (fun [a b] (- a b)))
+  (match (array-fold sizes
+                     (fun [acc v]
+                       (match acc
+                         ((#some _) acc)
+                         (#none (if (> (+ unused v) req)
+                                  (#some v)
+                                  acc))))
+                     #none)
+    ((#some v) v)
+    (#none -1)))
+
+(fun parse [f]
+  (val inp (view-of-string (io/read-file f)))
+  (match (whole inp)
+    ((#ok _) (do
+               (print (fmt-str "sum: " (hashtbl/fold tbl 0 acc-tbl)))
+               (print (fmt-str "smallest: " (smallest-deletion tbl)))))
+    ((#err rem) (print (fmt-str "err:\n" (string-of-view rem))))))
+
+(io/with-open "input" parse)
